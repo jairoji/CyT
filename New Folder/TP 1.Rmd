@@ -1,0 +1,140 @@
+---
+title: "TP 1 DM en C y T"
+author: "Jairo Jiménez, Sergio De Raco, Diego Acosta"
+date: "8 de septiembre de 2015"
+output: pdf_document
+---
+
+```{r}
+library(knitr)
+library(ggplot2)
+library(reshape)
+```
+
+```{r}
+setwd("/run/media/ahriman/Stuff/MDMKD/Segundo Cuatrimestre/CYT/TP 1")
+glx = read.csv("COMBO17.csv")
+```
+
+
+#Punto 1
+
+Para saber cual es la variable que presenta problemas, se usa la función str:
+
+```{r}
+str(glx)
+```
+
+La variable que está causando el problema es la variable ´Combo_data$e.W420FE´, la cual aparece como variable categórica, sin embargo, esta parece ser una variable numérica. Esto se debe a que dentro de los datos de la variable se encuentra uno de tipo caracter, lo que causa que toda la variable sea tomada como factor En este caso particular, el problema son los espacios en algunos de los registros. 
+
+```{r}
+head(levels(glx$e.W420FE), 20)
+```
+
+#Punto 2
+
+En adelante se trabaja con el siguiente conjunto de datos restringido
+
+```{r}
+variables_de_interes = c("Nr", "Rmag", "e.Rmag", "ApDRmag", "Mcz", 
+                         "UjMAG", "BjMAG", "VjMAG", "usMAG", "gsMAG",
+                         "rsMAG", "UbMAG", "BbMAG", "VnMAG", "S280MAG")
+glx_vars_interes = glx[, variables_de_interes]
+kable(head(glx_vars_interes[, 1:10]))
+```
+
+Los datos atípicos se calculan de forma univariada usando la función boxplot.stats, la cual permite seleccionar el umbran en el cual se va a decidir si un dato es atípico o no. Según lo aprendido en AID, los datos atípicos "fuertes" son aquellos que están a más de 3 rangos intercuartílicos del primer y tercer cuartíl, los cuales se calculan a continuación
+
+
+```{r}
+var_limites = NULL
+outliers = NULL
+for(i in 2:ncol(glx_vars_interes)){
+  Var_stats = boxplot.stats(glx_vars_interes[,i], coef = 3)$stats
+  var_limites = cbind(var_limites, Var_stats[c(1,5)])
+  outliers_var = which(glx_vars_interes[,i] < Var_stats[1] |
+                         glx_vars_interes[,i] > Var_stats[5])
+  outliers = union(outliers, outliers_var)
+  # print(colnames(glx_vars_interes)[i])
+}
+
+colnames(var_limites) =  colnames(glx_vars_interes)[2:ncol(glx_vars_interes)]
+rownames(var_limites) = c("Lim_Inf", "Lim_Sup")
+```
+
+La cantidad de datos atípicos y el porcentaje que representa se muestra a continuación:
+
+```{r}
+atipicos = data.frame(length(outliers), round(length(outliers)/nrow(glx)*100, 2))
+colnames(atipicos) = c("Cantidad", "Porcentaje")
+kable(atipicos)
+```
+
+Para eliminar los datos atípicos se usa la siguiente sentencia:
+
+```{r}
+glx_vars_interes_no_out = glx_vars_interes[-outliers, ]
+```
+
+
+Los límites para determinar si un dato es atípico según los boxplots son los siguientes:
+
+```{r}
+kable(var_limites[,1:7])
+kable(var_limites[,8:14])
+```
+
+#Punto 3
+
+Para eliminar los datos faltantes se usa la función na.omit, además de esto se usó la función mostrada a continuación para determinar la cantidad de registros que presentaban datos faltantes
+
+```{r}
+reg_faltantes = unique(unlist(apply(glx_vars_interes_no_out, 2, function(x) which(is.na(x))), use.names = F))
+numero_faltantes = length(reg_faltantes)
+names(numero_faltantes) = "Número de faltantes"
+kable(numero_faltantes)
+```
+
+Eliminando los faltantes:
+
+```{r}
+glx_vars_interes_no_out_no_missing = na.omit(glx_vars_interes_no_out)
+```
+
+
+
+#Punto 4
+
+Las correlaciones de las variables no normalizadas son
+
+```{r}
+vars_normalizar = c("UjMAG", "BjMAG", "VjMAG", "usMAG", "gsMAG", "rsMAG",
+                    "UbMAG", "BbMAG", "VnMAG")
+
+cor_matrix = (cor(glx_vars_interes_no_out_no_missing[, vars_normalizar]))
+kable(cor_matrix[,1:4])
+kable(cor_matrix[,5:9])
+
+```
+
+Para normalizar las variables se usa el siguiente código:
+ 
+```{r}
+glx_normalizado = NULL
+for(i in vars_normalizar){
+  var_normalizada = glx_vars_interes_no_out_no_missing$S280MAG - glx_vars_interes_no_out_no_missing[,i]
+  glx_normalizado = cbind(glx_normalizado, var_normalizada)
+}
+colnames(glx_normalizado) = paste(vars_normalizar, "_normalizada", sep = "")
+```
+
+La matriz de correlación para las variables normalizadas se presenta a continuación
+
+```{r}
+cor_matrix_normal = cor(glx_normalizado)
+kable(cor_matrix_normal[,1:3])
+kable(cor_matrix_normal[,4:6])
+kable(cor_matrix_normal[,7:9])
+```
+
+El efecto que tiene la normalización con la variable "S280MAG" es el de reducir la correlación entre las variables.
